@@ -25,20 +25,20 @@ def log_error(error_message: str) -> None:
     with open('errors.txt', 'a', encoding='utf-8') as file:
         file.write(f"[{datetime.now()}] {error_message}\n")
 
-# Функция для чтения приветственного сообщения из файла
-def read_welcome_message() -> str:
+# Функция для чтения файла
+def read_file(filename: str) -> str:
     try:
-        with open('welcome.txt', 'r', encoding='utf-8') as file:
-            welcome_message = file.read().strip()  # Убираем лишние пробелы и переносы строк
-            if not welcome_message:  # Если файл пустой
-                raise ValueError("Файл welcome.txt пуст.")
-            return welcome_message
+        with open(filename, 'r', encoding='utf-8') as file:
+            content = file.read().strip()
+            if not content:
+                raise ValueError(f"Файл {filename} пуст.")
+            return content
     except FileNotFoundError:
-        log_error("Файл welcome.txt не найден.")
-        return "Добро пожаловать! Выберите действие:"
+        log_error(f"Файл {filename} не найден.")
+        return f"Файл {filename} не найден."
     except Exception as e:
-        log_error(f"Ошибка при чтении welcome.txt: {e}")
-        return "Добро пожаловать! Выберите действие:"
+        log_error(f"Ошибка при чтении файла {filename}: {e}")
+        return f"Ошибка при чтении файла {filename}."
 
 # Функция для отображения главного меню
 async def show_main_menu(update: Update, context: CallbackContext) -> None:
@@ -80,7 +80,7 @@ async def send_schedule(update: Update, context: CallbackContext) -> None:
 # Функция для старта бота
 async def start(update: Update, context: CallbackContext) -> None:
     # Чтение приветственного сообщения из файла
-    welcome_message = read_welcome_message()
+    welcome_message = read_file('welcome.txt')
 
     # Отправляем приветственное сообщение и показываем меню
     await update.message.reply_text(welcome_message)
@@ -88,18 +88,8 @@ async def start(update: Update, context: CallbackContext) -> None:
 
 # Функция для отображения последних комментариев
 async def show_comments(update: Update, context: CallbackContext) -> None:
-    try:
-        with open('comments.txt', 'r', encoding='utf-8') as file:
-            comments = file.readlines()  # Читаем все комментарии
-            if comments:
-                # Отображаем последние 10 комментариев
-                comments_text = "Последние комментарии:\n\n" + "".join(comments[-10:])
-                await update.callback_query.message.reply_text(comments_text)
-            else:
-                await update.callback_query.message.reply_text("Комментариев пока нет.")
-    except FileNotFoundError:
-        await update.callback_query.message.reply_text("Файл comments.txt не найден.")
-        log_error("Файл comments.txt не найден.")
+    comments = read_file('comments.txt')
+    await update.callback_query.message.reply_text(comments)
 
 # Обработчик нажатий на кнопки
 async def button_handler(update: Update, context: CallbackContext) -> None:
@@ -113,32 +103,18 @@ async def button_handler(update: Update, context: CallbackContext) -> None:
 
     elif query.data == 'people_info':
         # Чтение данных из файла
-        try:
-            with open('people_info.txt', 'r', encoding='utf-8') as file:
-                people_info = file.read()
-            if people_info.strip():  # Проверка, что файл не пустой
-                await query.message.reply_text(people_info)
-            else:
-                await query.message.reply_text("Файл people_info.txt пуст.")
-        except FileNotFoundError as e:
-            await query.message.reply_text("Файл people_info.txt не найден.")
-            log_error(f"Файл people_info.txt не найден: {e}")
+        people_info = read_file('people_info.txt')
+        await query.message.reply_text(people_info)
+        await show_main_menu(update, context)  # Возврат в главное меню
 
     elif query.data == 'faq':
         await query.message.reply_text("Задайте ваш вопрос. Бот постарается ответить.")
 
     elif query.data == 'school_info':
         # Чтение информации о школе из файла
-        try:
-            with open('school_info.txt', 'r', encoding='utf-8') as file:
-                school_info = file.read()
-            if school_info.strip():  # Проверка, что файл не пустой
-                await query.message.reply_text(school_info)
-            else:
-                await query.message.reply_text("Файл school_info.txt пуст.")
-        except FileNotFoundError as e:
-            await query.message.reply_text("Файл school_info.txt не найден.")
-            log_error(f"Файл school_info.txt не найден: {e}")
+        school_info = read_file('school_info.txt')
+        await query.message.reply_text(school_info)
+        await show_main_menu(update, context)  # Возврат в главное меню
 
     elif query.data == 'comments':
         # Сбор комментариев
