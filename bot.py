@@ -11,7 +11,6 @@ logger = logging.getLogger(__name__)
 LATITUDE = 53.188071  # Широта
 LONGITUDE = 45.065603  # Долгота
 ADMIN_CHAT_ID = 704381821  # ID администратора
-ADMIN_CHAT_ID = 341303011  # ID администратора
 TOKEN = "8132367709:AAFiFNFSLBG39Z-4Xj3LBPiJxkjZjKAy5Z4"  # Токен бота
 
 # Сценарий для ответов на вопросы
@@ -60,7 +59,7 @@ async def show_main_menu(update: Update, context: CallbackContext) -> None:
 
     # Отправляем сообщение с клавиатурой
     if update.callback_query:
-        await update.callback_query.edit_message_text("Добро пожаловать в наш бот! Здесь вы можете найти информацию о школе, задать вопросы и оставить комментарии.", reply_markup=reply_markup)
+        await update.callback_query.message.reply_text("Выберите действие:", reply_markup=reply_markup)
     else:
         await update.message.reply_text("Выберите действие:", reply_markup=reply_markup)
 
@@ -95,11 +94,11 @@ async def show_comments(update: Update, context: CallbackContext) -> None:
             if comments:
                 # Отображаем последние 10 комментариев
                 comments_text = "Последние комментарии:\n\n" + "".join(comments[-10:])
-                await update.callback_query.edit_message_text(comments_text, reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🏠 Главное меню", callback_data='main_menu')]]))
+                await update.callback_query.message.reply_text(comments_text)
             else:
-                await update.callback_query.edit_message_text("Комментариев пока нет.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🏠 Главное меню", callback_data='main_menu')]]))
+                await update.callback_query.message.reply_text("Комментариев пока нет.")
     except FileNotFoundError:
-        await update.callback_query.edit_message_text("Файл comments.txt не найден.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🏠 Главное меню", callback_data='main_menu')]]))
+        await update.callback_query.message.reply_text("Файл comments.txt не найден.")
         log_error("Файл comments.txt не найден.")
 
 # Обработчик нажатий на кнопки
@@ -118,15 +117,15 @@ async def button_handler(update: Update, context: CallbackContext) -> None:
             with open('people_info.txt', 'r', encoding='utf-8') as file:
                 people_info = file.read()
             if people_info.strip():  # Проверка, что файл не пустой
-                await query.edit_message_text(people_info, reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🏠 Главное меню", callback_data='main_menu')]]))
+                await query.message.reply_text(people_info)
             else:
-                await query.edit_message_text("Файл people_info.txt пуст.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🏠 Главное меню", callback_data='main_menu')]]))
+                await query.message.reply_text("Файл people_info.txt пуст.")
         except FileNotFoundError as e:
-            await query.edit_message_text("Файл people_info.txt не найден.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🏠 Главное меню", callback_data='main_menu')]]))
+            await query.message.reply_text("Файл people_info.txt не найден.")
             log_error(f"Файл people_info.txt не найден: {e}")
 
     elif query.data == 'faq':
-        await query.edit_message_text("Задайте ваш вопрос. Бот постарается ответить.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🏠 Главное меню", callback_data='main_menu')]]))
+        await query.message.reply_text("Задайте ваш вопрос. Бот постарается ответить.")
 
     elif query.data == 'school_info':
         # Чтение информации о школе из файла
@@ -134,16 +133,16 @@ async def button_handler(update: Update, context: CallbackContext) -> None:
             with open('school_info.txt', 'r', encoding='utf-8') as file:
                 school_info = file.read()
             if school_info.strip():  # Проверка, что файл не пустой
-                await query.edit_message_text(school_info, reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🏠 Главное меню", callback_data='main_menu')]]))
+                await query.message.reply_text(school_info)
             else:
-                await query.edit_message_text("Файл school_info.txt пуст.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🏠 Главное меню", callback_data='main_menu')]]))
+                await query.message.reply_text("Файл school_info.txt пуст.")
         except FileNotFoundError as e:
-            await query.edit_message_text("Файл school_info.txt не найден.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🏠 Главное меню", callback_data='main_menu')]]))
+            await query.message.reply_text("Файл school_info.txt не найден.")
             log_error(f"Файл school_info.txt не найден: {e}")
 
     elif query.data == 'comments':
         # Сбор комментариев
-        await query.edit_message_text("Напишите ваш комментарий или пожелание:", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🏠 Главное меню", callback_data='main_menu')]]))
+        await query.message.reply_text("Напишите ваш комментарий или пожелание:")
         context.user_data['awaiting_comment'] = True
 
     elif query.data == 'show_comments':
@@ -167,6 +166,11 @@ async def message_handler(update: Update, context: CallbackContext) -> None:
             with open('comments.txt', 'a', encoding='utf-8') as file:
                 file.write(f"[{datetime.now()}] @{update.message.from_user.username}: {comment}\n")
             await update.message.reply_text("Спасибо за ваш комментарий!")
+            # Пересылка комментария администратору
+            await context.bot.send_message(
+                chat_id=ADMIN_CHAT_ID,
+                text=f"Новый комментарий от @{update.message.from_user.username}:\n{comment}"
+            )
         except Exception as e:
             await update.message.reply_text("Произошла ошибка при сохранении комментария.")
             log_error(f"Ошибка при сохранении комментария: {e}")
@@ -189,13 +193,10 @@ async def message_handler(update: Update, context: CallbackContext) -> None:
         else:
             # Пересылка вопроса администратору
             user_questions[update.message.from_user.id] = update.message.text
-            keyboard = [[InlineKeyboardButton("Ответить", callback_data=f'reply_{update.message.from_user.id}')]]
-            reply_markup = InlineKeyboardMarkup(keyboard)
             try:
                 await context.bot.send_message(
                     chat_id=ADMIN_CHAT_ID,
-                    text=f"Вопрос от пользователя {update.message.from_user.username}: {update.message.text}",
-                    reply_markup=reply_markup
+                    text=f"Вопрос от пользователя {update.message.from_user.username}:\n{update.message.text}"
                 )
                 await update.message.reply_text("Извините, я не могу ответить на этот вопрос. Вопрос переадресован администратору.")
             except Exception as e:
