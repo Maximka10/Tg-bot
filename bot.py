@@ -11,6 +11,7 @@ logger = logging.getLogger(__name__)
 LATITUDE = 53.188071  # Широта
 LONGITUDE = 45.065603  # Долгота
 ADMIN_CHAT_ID = 704381821  # ID администратора
+ADMIN_CHAT_ID = 341303011  # ID администратора
 TOKEN = "8132367709:AAFiFNFSLBG39Z-4Xj3LBPiJxkjZjKAy5Z4"  # Токен бота
 
 # Сценарий для ответов на вопросы
@@ -90,9 +91,10 @@ async def start(update: Update, context: CallbackContext) -> None:
 async def show_comments(update: Update, context: CallbackContext) -> None:
     try:
         with open('comments.txt', 'r', encoding='utf-8') as file:
-            comments = file.readlines()[-10:]  # Последние 10 комментариев
+            comments = file.readlines()  # Читаем все комментарии
             if comments:
-                comments_text = "Последние комментарии:\n\n" + "".join(comments)
+                # Отображаем последние 10 комментариев
+                comments_text = "Последние комментарии:\n\n" + "".join(comments[-10:])
                 await update.callback_query.edit_message_text(comments_text, reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🏠 Главное меню", callback_data='main_menu')]]))
             else:
                 await update.callback_query.edit_message_text("Комментариев пока нет.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🏠 Главное меню", callback_data='main_menu')]]))
