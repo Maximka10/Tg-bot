@@ -141,11 +141,12 @@ async def message_handler(update: Update, context: CallbackContext) -> None:
                 user_id = user_questions[replied_message_id]
                 # Отправляем ответ пользователю
                 await context.bot.send_message(chat_id=user_id, text=f"Ответ от администратора:\n{update.message.text}")
-                await update.message.reply_text("Ответ отправлен пользователю.")
+                await update.message.reply_text(f"Ответ отправлен пользователю с ID: {user_id}.")
                 # Удаляем запись о вопросе
                 del user_questions[replied_message_id]
             else:
                 await update.message.reply_text("Ошибка: не найден ID пользователя для этого вопроса.")
+                logger.error(f"Не найден ID пользователя для сообщения с ID: {replied_message_id}")
         else:
             await update.message.reply_text("Ответьте на сообщение с вопросом, чтобы отправить ответ пользователю.")
         return
@@ -181,6 +182,7 @@ async def message_handler(update: Update, context: CallbackContext) -> None:
 
         # Сохраняем ID сообщения и ID пользователя
         user_questions[sent_message.message_id] = user_id
+        logger.info(f"Сохранен вопрос от пользователя {user_id} с ID сообщения: {sent_message.message_id}")
 
 # Основная функция
 def main() -> None:
