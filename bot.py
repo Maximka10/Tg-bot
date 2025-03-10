@@ -15,7 +15,6 @@ TOKEN = "8132367709:AAFiFNFSLBG39Z-4Xj3LBPiJxkjZjKAy5Z4"  # Токен бота
 
 # Глобальные переменные
 user_questions = {}  # Словарь для хранения вопросов пользователей
-awaiting_admin_response = False  # Флаг для ожидания ответа администратора
 
 # Функция для записи ошибок в файл
 def log_error(error_message: str) -> None:
@@ -132,15 +131,14 @@ async def button_handler(update: Update, context: CallbackContext) -> None:
 
 # Обработчик текстовых сообщений
 async def message_handler(update: Update, context: CallbackContext) -> None:
-    global awaiting_admin_response
-
-    if update.message.chat_id == ADMIN_CHAT_ID and awaiting_admin_response:
-        # Если сообщение от администратора и ожидается ответ
-        user_id = context.user_data.get('current_user_id')
-        if user_id:
+    if update.message.chat_id == ADMIN_CHAT_ID:
+        # Если сообщение от администратора
+        if 'current_user_id' in context.user_data:
+            # Отправляем ответ пользователю
+            user_id = context.user_data['current_user_id']
             await context.bot.send_message(chat_id=user_id, text=f"Ответ от администратора:\n{update.message.text}")
-            awaiting_admin_response = False
             await update.message.reply_text("Ответ отправлен пользователю.")
+            del context.user_data['current_user_id']  # Удаляем ID пользователя после отправки ответа
         else:
             await update.message.reply_text("Ошибка: не найден ID пользователя.")
         return
@@ -174,9 +172,8 @@ async def message_handler(update: Update, context: CallbackContext) -> None:
         )
         await update.message.reply_text("Ваш вопрос переадресован администратору. Ожидайте ответа.")
 
-        # Сохраняем ID пользователя и ждем ответа администратора
+        # Сохраняем ID пользователя для ответа
         context.user_data['current_user_id'] = user_id
-        awaiting_admin_response = True
 
 # Основная функция
 def main() -> None:
