@@ -14,7 +14,7 @@ ADMIN_CHAT_ID = 704381821  # ID администратора
 TOKEN = "8132367709:AAFiFNFSLBG39Z-4Xj3LBPiJxkjZjKAy5Z4"  # Токен бота
 
 # Глобальные переменные
-user_questions = {}  # Словарь для хранения вопросов пользователей
+user_questions = {}  # Словарь для хранения вопросов пользователей: {message_id: user_id}
 
 # Функция для записи ошибок в файл
 def log_error(error_message: str) -> None:
@@ -133,14 +133,21 @@ async def button_handler(update: Update, context: CallbackContext) -> None:
 async def message_handler(update: Update, context: CallbackContext) -> None:
     if update.message.chat_id == ADMIN_CHAT_ID:
         # Если сообщение от администратора
-        if 'current_user_id' in context.user_data:
-            # Отправляем ответ пользователю
-            user_id = context.user_data['current_user_id']
-            await context.bot.send_message(chat_id=user_id, text=f"Ответ от администратора:\n{update.message.text}")
-            await update.message.reply_text("Ответ отправлен пользователю.")
-            del context.user_data['current_user_id']  # Удаляем ID пользователя после отправки ответа
+        if update.message.reply_to_message:
+            # Если администратор отвечает на сообщение
+            replied_message_id = update.message.reply_to_message.message_id
+            if replied_message_id in user_questions:
+                # Получаем ID пользователя, который задал вопрос
+                user_id = user_questions[replied_message_id]
+                # Отправляем ответ пользователю
+                await context.bot.send_message(chat_id=user_id, text=f"Ответ от администратора:\n{update.message.text}")
+                await update.message.reply_text("Ответ отправлен пользователю.")
+                # Удаляем запись о вопросе
+                del user_questions[replied_message_id]
+            else:
+                await update.message.reply_text("Ошибка: не найден ID пользователя для этого вопроса.")
         else:
-            await update.message.reply_text("Ошибка: не найден ID пользователя.")
+            await update.message.reply_text("Ответьте на сообщение с вопросом, чтобы отправить ответ пользователю.")
         return
 
     if context.user_data.get('awaiting_comment'):
@@ -166,14 +173,14 @@ async def message_handler(update: Update, context: CallbackContext) -> None:
         user_id = update.message.from_user.id
 
         # Пересылка вопроса администратору
-        await context.bot.send_message(
+        sent_message = await context.bot.send_message(
             chat_id=ADMIN_CHAT_ID,
             text=f"Вопрос от пользователя @{update.message.from_user.username} (ID: {user_id}):\n{question}"
         )
         await update.message.reply_text("Ваш вопрос переадресован администратору. Ожидайте ответа.")
 
-        # Сохраняем ID пользователя для ответа
-        context.user_data['current_user_id'] = user_id
+        # Сохраняем ID сообщения и ID пользователя
+        user_questions[sent_message.message_id] = user_id
 
 # Основная функция
 def main() -> None:
