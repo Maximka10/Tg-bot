@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 LATITUDE = 53.188071  # Широта
 LONGITUDE = 45.065603  # Долгота
 ADMIN_CHAT_ID = 704381821  # ID администратора
-TOKEN = "YOUR_BOT_TOKEN"  # Токен бота
+TOKEN = "8132367709:AAFiFNFSLBG39Z-4Xj3LBPiJxkjZjKAy5Z4"  # Токен бота
 
 # Сценарий для ответов на вопросы
 FAQ = {
