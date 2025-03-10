@@ -165,8 +165,8 @@ def main() -> None:
     application.add_handler(CallbackQueryHandler(button_handler))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_handler))
 
-    # Запуск бота
-    application.run_polling()
+    # Запуск бота с игнорированием старых обновлений
+    application.run_polling(drop_pending_updates=True)
 
 if __name__ == '__main__':
     main()
