@@ -13,14 +13,11 @@ LONGITUDE = 45.065603  # Долгота
 ADMIN_CHAT_ID = 704381821  # ID администратора
 TOKEN = "8132367709:AAFiFNFSLBG39Z-4Xj3LBPiJxkjZjKAy5Z4"  # Токен бота
 
-# Глобальный словарь для хранения вопросов пользователей
-user_questions = {}
-
 # Сценарий для ответов на вопросы
 FAQ = {
     "адрес": "Адрес школы: ул. Антонова, д. 14Б",
     "директор": "Директор школы: Выборнов Евгений Владимирович",
-    "расписание": "Расписание можно найти по команде /schedule",
+    "расписание": "Расписание можно найти по кнопке '📅 Расписание'.",
 }
 
 # Функция для записи ошибок в файл
@@ -54,8 +51,8 @@ async def show_main_menu(update: Update, context: CallbackContext) -> None:
         [InlineKeyboardButton("📅 Расписание", callback_data='schedule')],  # Кнопка "Расписание"
     ]
 
-    # Добавляем кнопку "Комментарии" только для администратора
-    if update.message and update.message.chat_id == ADMIN_CHAT_ID:
+    # Добавляем кнопку "Показать комментарии" только для администратора
+    if update.effective_chat.id == ADMIN_CHAT_ID:
         keyboard.append([InlineKeyboardButton("📝 Показать комментарии", callback_data='show_comments')])
 
     reply_markup = InlineKeyboardMarkup(keyboard)
@@ -111,8 +108,7 @@ async def button_handler(update: Update, context: CallbackContext) -> None:
     if query.data == 'location':
         # Отправка геопозиции школы
         await context.bot.send_location(chat_id=query.message.chat_id, latitude=LATITUDE, longitude=LONGITUDE)
-        # Добавляем кнопку "Главное меню" после отправки локации
-        await query.message.reply_text("Вы можете вернуться в главное меню:", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🏠 Главное меню", callback_data='main_menu')]]))
+        await show_main_menu(update, context)  # Возврат в главное меню
 
     elif query.data == 'people_info':
         # Чтение данных из файла
@@ -160,74 +156,50 @@ async def button_handler(update: Update, context: CallbackContext) -> None:
         # Возврат в главное меню
         await show_main_menu(update, context)
 
-    elif query.data.startswith('reply_'):
-        # Обработка кнопки "Ответить"
-        user_id = int(query.data.split('_')[1])  # Получаем ID пользователя
-        context.user_data['replying_to'] = user_id  # Сохраняем ID пользователя для ответа
-        await query.edit_message_text(f"Вы отвечаете пользователю {user_id}. Напишите ответ:")
-
 # Обработчик текстовых сообщений
 async def message_handler(update: Update, context: CallbackContext) -> None:
-    if update.message.chat_id == ADMIN_CHAT_ID:
-        # Если сообщение от администратора
-        if 'replying_to' in context.user_data:
-            # Если администратор отвечает на вопрос
-            user_id = context.user_data['replying_to']
-            response = update.message.text
-            try:
-                await context.bot.send_message(chat_id=user_id, text=f"Ответ от администратора: {response}")
-                await update.message.reply_text("Ответ отправлен.")
-                del context.user_data['replying_to']  # Удаляем состояние
-            except Exception as e:
-                await update.message.reply_text("Произошла ошибка при отправке ответа.")
-                log_error(f"Ошибка при отправке ответа: {e}")
-        else:
-            # Если администратор просто пишет сообщение (не ответ)
-            await update.message.reply_text("Вы можете ответить на вопрос, нажав кнопку 'Ответить'.")
+    if context.user_data.get('awaiting_comment'):
+        # Сохранение комментария
+        comment = update.message.text
+        try:
+            with open('comments.txt', 'a', encoding='utf-8') as file:
+                file.write(f"[{datetime.now()}] @{update.message.from_user.username}: {comment}\n")
+            await update.message.reply_text("Спасибо за ваш комментарий!")
+        except Exception as e:
+            await update.message.reply_text("Произошла ошибка при сохранении комментария.")
+            log_error(f"Ошибка при сохранении комментария: {e}")
+        context.user_data['awaiting_comment'] = False
+        await show_main_menu(update, context)  # Возврат в главное меню
     else:
-        # Если сообщение от пользователя
-        if context.user_data.get('awaiting_comment'):
-            # Сохранение комментария
-            comment = update.message.text
-            try:
-                with open('comments.txt', 'a', encoding='utf-8') as file:
-                    file.write(f"{update.message.from_user.username}: {comment}\n")
-                await update.message.reply_text("Спасибо за ваш комментарий!")
-            except Exception as e:
-                await update.message.reply_text("Произошла ошибка при сохранении комментария.")
-                log_error(f"Ошибка при сохранении комментария: {e}")
-            context.user_data['awaiting_comment'] = False
+        # Ответы на вопросы
+        question = update.message.text.lower()
+        response = None
+
+        # Поиск ответа в сценарии
+        for keyword, answer in FAQ.items():
+            if keyword in question:
+                response = answer
+                break
+
+        if response:
+            await update.message.reply_text(response)
             await show_main_menu(update, context)  # Возврат в главное меню
         else:
-            # Ответы на вопросы
-            question = update.message.text.lower()
-            response = None
-
-            # Поиск ответа в сценарии
-            for keyword, answer in FAQ.items():
-                if keyword in question:
-                    response = answer
-                    break
-
-            if response:
-                await update.message.reply_text(response)
-                await show_main_menu(update, context)  # Возврат в главное меню
-            else:
-                # Пересылка вопроса администратору
-                user_questions[update.message.from_user.id] = update.message.text
-                keyboard = [[InlineKeyboardButton("Ответить", callback_data=f'reply_{update.message.from_user.id}')]]
-                reply_markup = InlineKeyboardMarkup(keyboard)
-                try:
-                    await context.bot.send_message(
-                        chat_id=ADMIN_CHAT_ID,
-                        text=f"Вопрос от пользователя {update.message.from_user.username}: {update.message.text}",
-                        reply_markup=reply_markup
-                    )
-                    await update.message.reply_text("Извините, я не могу ответить на этот вопрос. Вопрос переадресован администратору.")
-                except Exception as e:
-                    await update.message.reply_text("Произошла ошибка при пересылке вопроса администратору.")
-                    log_error(f"Ошибка при пересылке вопроса администратору: {e}")
-                await show_main_menu(update, context)  # Возврат в главное меню
+            # Пересылка вопроса администратору
+            user_questions[update.message.from_user.id] = update.message.text
+            keyboard = [[InlineKeyboardButton("Ответить", callback_data=f'reply_{update.message.from_user.id}')]]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            try:
+                await context.bot.send_message(
+                    chat_id=ADMIN_CHAT_ID,
+                    text=f"Вопрос от пользователя {update.message.from_user.username}: {update.message.text}",
+                    reply_markup=reply_markup
+                )
+                await update.message.reply_text("Извините, я не могу ответить на этот вопрос. Вопрос переадресован администратору.")
+            except Exception as e:
+                await update.message.reply_text("Произошла ошибка при пересылке вопроса администратору.")
+                log_error(f"Ошибка при пересылке вопроса администратору: {e}")
+            await show_main_menu(update, context)  # Возврат в главное меню
 
 # Обработка ошибок
 async def error_handler(update: Update, context: CallbackContext) -> None:
@@ -242,7 +214,6 @@ def main() -> None:
 
     # Регистрируем обработчики
     application.add_handler(CommandHandler("start", start))
-    application.add_handler(CommandHandler("schedule", send_schedule))  # Команда /schedule
     application.add_handler(CallbackQueryHandler(button_handler))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_handler))
     application.add_error_handler(error_handler)
