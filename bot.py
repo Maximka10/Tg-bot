@@ -43,13 +43,8 @@ async def show_main_menu(update: Update, context: CallbackContext) -> None:
         [InlineKeyboardButton("📄 Информация о людях", callback_data='people_info')],
         [InlineKeyboardButton("❓ Вопрос-ответ", callback_data='faq')],
         [InlineKeyboardButton("🏫 Информация о школе", callback_data='school_info')],
-        [InlineKeyboardButton("💬 Комментарии и пожелания", callback_data='comments')],
         [InlineKeyboardButton("📅 Расписание", callback_data='schedule')],
     ]
-
-    # Добавляем кнопку "Показать комментарии" только для администратора
-    if update.effective_chat.id == ADMIN_CHAT_ID:
-        keyboard.append([InlineKeyboardButton("📝 Показать комментарии", callback_data='show_comments')])
 
     reply_markup = InlineKeyboardMarkup(keyboard)
 
@@ -82,10 +77,17 @@ async def start(update: Update, context: CallbackContext) -> None:
     await update.message.reply_text(welcome_message)
     await show_main_menu(update, context)
 
-# Функция для отображения последних комментариев
-async def show_comments(update: Update, context: CallbackContext) -> None:
-    comments = read_file('comments.txt')
-    await update.callback_query.message.reply_text(comments)
+# Функция для отображения информации о людях
+async def show_people_info(update: Update, context: CallbackContext) -> None:
+    people_info = read_file('people_info.txt')
+    await update.callback_query.message.reply_text(people_info)
+    await show_main_menu(update, context)  # Возврат в главное меню
+
+# Функция для отображения информации о школе
+async def show_school_info(update: Update, context: CallbackContext) -> None:
+    school_info = read_file('school_info.txt')
+    await update.callback_query.message.reply_text(school_info)
+    await show_main_menu(update, context)  # Возврат в главное меню
 
 # Обработчик нажатий на кнопки
 async def button_handler(update: Update, context: CallbackContext) -> None:
@@ -98,28 +100,15 @@ async def button_handler(update: Update, context: CallbackContext) -> None:
         await show_main_menu(update, context)  # Возврат в главное меню
 
     elif query.data == 'people_info':
-        # Чтение данных из файла
-        people_info = read_file('people_info.txt')
-        await query.message.reply_text(people_info)
-        await show_main_menu(update, context)  # Возврат в главное меню
+        # Показ информации о людях
+        await show_people_info(update, context)
 
     elif query.data == 'faq':
         await query.message.reply_text("Задайте ваш вопрос. Бот постарается ответить.")
 
     elif query.data == 'school_info':
-        # Чтение информации о школе из файла
-        school_info = read_file('school_info.txt')
-        await query.message.reply_text(school_info)
-        await show_main_menu(update, context)  # Возврат в главное меню
-
-    elif query.data == 'comments':
-        # Сбор комментариев
-        await query.message.reply_text("Напишите ваш комментарий или пожелание:")
-        context.user_data['awaiting_comment'] = True
-
-    elif query.data == 'show_comments':
-        # Показ последних комментариев для администратора
-        await show_comments(update, context)
+        # Показ информации о школе
+        await show_school_info(update, context)
 
     elif query.data == 'schedule':
         # Отправка расписания
@@ -151,38 +140,20 @@ async def message_handler(update: Update, context: CallbackContext) -> None:
             await update.message.reply_text("Ответьте на сообщение с вопросом, чтобы отправить ответ пользователю.")
         return
 
-    if context.user_data.get('awaiting_comment'):
-        # Сохранение комментария
-        comment = update.message.text
-        try:
-            with open('comments.txt', 'a', encoding='utf-8') as file:
-                file.write(f"[{datetime.now()}] @{update.message.from_user.username}: {comment}\n")
-            await update.message.reply_text("Спасибо за ваш комментарий!")
-            # Пересылка комментария администратору
-            await context.bot.send_message(
-                chat_id=ADMIN_CHAT_ID,
-                text=f"Новый комментарий от @{update.message.from_user.username}:\n{comment}"
-            )
-        except Exception as e:
-            await update.message.reply_text("Произошла ошибка при сохранении комментария.")
-            log_error(f"Ошибка при сохранении комментария: {e}")
-        context.user_data['awaiting_comment'] = False
-        await show_main_menu(update, context)  # Возврат в главное меню
-    else:
-        # Ответы на вопросы
-        question = update.message.text
-        user_id = update.message.from_user.id
+    # Ответы на вопросы
+    question = update.message.text
+    user_id = update.message.from_user.id
 
-        # Пересылка вопроса администратору
-        sent_message = await context.bot.send_message(
-            chat_id=ADMIN_CHAT_ID,
-            text=f"Вопрос от пользователя @{update.message.from_user.username} (ID: {user_id}):\n{question}"
-        )
-        await update.message.reply_text("Ваш вопрос переадресован администратору. Ожидайте ответа.")
+    # Пересылка вопроса администратору
+    sent_message = await context.bot.send_message(
+        chat_id=ADMIN_CHAT_ID,
+        text=f"Вопрос от пользователя @{update.message.from_user.username} (ID: {user_id}):\n{question}"
+    )
+    await update.message.reply_text("Ваш вопрос переадресован администратору. Ожидайте ответа.")
 
-        # Сохраняем ID сообщения и ID пользователя
-        user_questions[sent_message.message_id] = user_id
-        logger.info(f"Сохранен вопрос от пользователя {user_id} с ID сообщения: {sent_message.message_id}")
+    # Сохраняем ID сообщения и ID пользователя
+    user_questions[sent_message.message_id] = user_id
+    logger.info(f"Сохранен вопрос от пользователя {user_id} с ID сообщения: {sent_message.message_id}")
 
 # Основная функция
 def main() -> None:
