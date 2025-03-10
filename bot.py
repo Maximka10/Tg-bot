@@ -13,15 +13,9 @@ LONGITUDE = 45.065603  # Долгота
 ADMIN_CHAT_ID = 704381821  # ID администратора
 TOKEN = "8132367709:AAFiFNFSLBG39Z-4Xj3LBPiJxkjZjKAy5Z4"  # Токен бота
 
-# Сценарий для ответов на вопросы
-FAQ = {
-    "адрес": "Адрес школы: ул. Антонова, д. 14Б",
-    "директор": "Директор школы: Выборнов Евгений Владимирович",
-    "расписание": "Расписание можно найти по кнопке '📅 Расписание'.",
-}
-
-# Глобальная переменная для хранения вопросов
-user_questions = {}
+# Глобальные переменные
+user_questions = {}  # Словарь для хранения вопросов пользователей
+awaiting_admin_response = False  # Флаг для ожидания ответа администратора
 
 # Функция для записи ошибок в файл
 def log_error(error_message: str) -> None:
@@ -138,63 +132,51 @@ async def button_handler(update: Update, context: CallbackContext) -> None:
 
 # Обработчик текстовых сообщений
 async def message_handler(update: Update, context: CallbackContext) -> None:
-    logger.info(f"Получено сообщение: {update.message.text}")
+    global awaiting_admin_response
+
+    if update.message.chat_id == ADMIN_CHAT_ID and awaiting_admin_response:
+        # Если сообщение от администратора и ожидается ответ
+        user_id = context.user_data.get('current_user_id')
+        if user_id:
+            await context.bot.send_message(chat_id=user_id, text=f"Ответ от администратора:\n{update.message.text}")
+            awaiting_admin_response = False
+            await update.message.reply_text("Ответ отправлен пользователю.")
+        else:
+            await update.message.reply_text("Ошибка: не найден ID пользователя.")
+        return
+
     if context.user_data.get('awaiting_comment'):
-        logger.info("Обработка комментария...")
         # Сохранение комментария
         comment = update.message.text
         try:
             with open('comments.txt', 'a', encoding='utf-8') as file:
                 file.write(f"[{datetime.now()}] @{update.message.from_user.username}: {comment}\n")
-            logger.info("Комментарий успешно записан в файл.")
             await update.message.reply_text("Спасибо за ваш комментарий!")
-            
             # Пересылка комментария администратору
-            try:
-                await context.bot.send_message(
-                    chat_id=ADMIN_CHAT_ID,
-                    text=f"Новый комментарий от @{update.message.from_user.username}:\n{comment}"
-                )
-                logger.info(f"Комментарий отправлен администратору: {ADMIN_CHAT_ID}")
-            except Exception as e:
-                logger.error(f"Ошибка при отправке комментария администратору: {e}")
-                await update.message.reply_text("Произошла ошибка при отправке комментария администратору.")
+            await context.bot.send_message(
+                chat_id=ADMIN_CHAT_ID,
+                text=f"Новый комментарий от @{update.message.from_user.username}:\n{comment}"
+            )
         except Exception as e:
-            logger.error(f"Ошибка при записи комментария: {e}")
             await update.message.reply_text("Произошла ошибка при сохранении комментария.")
-        finally:
-            context.user_data['awaiting_comment'] = False
-            await show_main_menu(update, context)  # Возврат в главное меню
+            log_error(f"Ошибка при сохранении комментария: {e}")
+        context.user_data['awaiting_comment'] = False
+        await show_main_menu(update, context)  # Возврат в главное меню
     else:
-        logger.info("Обработка вопроса...")
         # Ответы на вопросы
-        question = update.message.text.lower()
-        response = None
+        question = update.message.text
+        user_id = update.message.from_user.id
 
-        # Поиск ответа в сценарии
-        for keyword, answer in FAQ.items():
-            if keyword in question:
-                response = answer
-                break
+        # Пересылка вопроса администратору
+        await context.bot.send_message(
+            chat_id=ADMIN_CHAT_ID,
+            text=f"Вопрос от пользователя @{update.message.from_user.username} (ID: {user_id}):\n{question}"
+        )
+        await update.message.reply_text("Ваш вопрос переадресован администратору. Ожидайте ответа.")
 
-        if response:
-            await update.message.reply_text(response)
-            await show_main_menu(update, context)  # Возврат в главное меню
-        else:
-            logger.info("Вопрос не найден в FAQ. Пересылка администратору...")
-            # Пересылка вопроса администратору
-            user_questions[update.message.from_user.id] = update.message.text
-            try:
-                await context.bot.send_message(
-                    chat_id=ADMIN_CHAT_ID,
-                    text=f"Вопрос от пользователя {update.message.from_user.username}:\n{update.message.text}"
-                )
-                await update.message.reply_text("Извините, я не могу ответить на этот вопрос. Вопрос переадресован администратору.")
-                logger.info(f"Вопрос отправлен администратору: {ADMIN_CHAT_ID}")
-            except Exception as e:
-                logger.error(f"Ошибка при отправке вопроса администратору: {e}")
-                await update.message.reply_text("Произошла ошибка при пересылке вопроса администратору.")
-            await show_main_menu(update, context)  # Возврат в главное меню
+        # Сохраняем ID пользователя и ждем ответа администратора
+        context.user_data['current_user_id'] = user_id
+        awaiting_admin_response = True
 
 # Основная функция
 def main() -> None:
