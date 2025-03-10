@@ -20,6 +20,9 @@ FAQ = {
     "расписание": "Расписание можно найти по кнопке '📅 Расписание'.",
 }
 
+# Глобальная переменная для хранения вопросов
+user_questions = {}
+
 # Функция для записи ошибок в файл
 def log_error(error_message: str) -> None:
     with open('errors.txt', 'a', encoding='utf-8') as file:
@@ -135,7 +138,9 @@ async def button_handler(update: Update, context: CallbackContext) -> None:
 
 # Обработчик текстовых сообщений
 async def message_handler(update: Update, context: CallbackContext) -> None:
+    logger.info(f"Получено сообщение: {update.message.text}")
     if context.user_data.get('awaiting_comment'):
+        logger.info("Обработка комментария...")
         # Сохранение комментария
         comment = update.message.text
         try:
@@ -147,12 +152,14 @@ async def message_handler(update: Update, context: CallbackContext) -> None:
                 chat_id=ADMIN_CHAT_ID,
                 text=f"Новый комментарий от @{update.message.from_user.username}:\n{comment}"
             )
+            logger.info("Комментарий сохранен и отправлен администратору.")
         except Exception as e:
             await update.message.reply_text("Произошла ошибка при сохранении комментария.")
             log_error(f"Ошибка при сохранении комментария: {e}")
         context.user_data['awaiting_comment'] = False
         await show_main_menu(update, context)  # Возврат в главное меню
     else:
+        logger.info("Обработка вопроса...")
         # Ответы на вопросы
         question = update.message.text.lower()
         response = None
@@ -167,6 +174,7 @@ async def message_handler(update: Update, context: CallbackContext) -> None:
             await update.message.reply_text(response)
             await show_main_menu(update, context)  # Возврат в главное меню
         else:
+            logger.info("Вопрос не найден в FAQ. Пересылка администратору...")
             # Пересылка вопроса администратору
             user_questions[update.message.from_user.id] = update.message.text
             try:
@@ -175,6 +183,7 @@ async def message_handler(update: Update, context: CallbackContext) -> None:
                     text=f"Вопрос от пользователя {update.message.from_user.username}:\n{update.message.text}"
                 )
                 await update.message.reply_text("Извините, я не могу ответить на этот вопрос. Вопрос переадресован администратору.")
+                logger.info("Вопрос успешно переслан администратору.")
             except Exception as e:
                 await update.message.reply_text("Произошла ошибка при пересылке вопроса администратору.")
                 log_error(f"Ошибка при пересылке вопроса администратору: {e}")
